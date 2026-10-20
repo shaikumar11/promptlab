@@ -1,25 +1,152 @@
-# PromptLab: RAG Assistant with a Versioned Prompt Library
+# PromptLab
 
-Python app that answers IT help desk questions from a knowledge base using retrieval augmented generation.
+A Python assistant that answers IT help desk questions **only from a trusted knowledge base**, cites its source, and refuses or escalates when it cannot find an answer. It has two parts:
 
-## What it has
-- Prompt library: named, versioned templates (qa v1, qa v2, summarize v1) with variable checks
-- NLP retriever: custom tokenizer with light stemming, TF-IDF with bigrams, cosine similarity, top-k
-- Switchable LLM client: Groq Llama 3.3 70B when GROQ_API_KEY is set, offline extractive client otherwise
-- Out-of-scope guard: refuses when the best retrieval score is below a threshold
-- Evaluation script: hit at 1, hit at 3, false reject rate, out-of-scope rejection
-- 9 unit tests
+1. **PromptLab**: retrieval augmented generation (RAG) with a versioned prompt library
+2. **TicketFlow**: a LangGraph agent that checks its own answer and raises a ticket when it cannot help
 
-## Run
-    pip install scikit-learn
-    python -m promptlab.cli "I forgot my password, how do I reset it?"
-    python -m promptlab.cli "VPN keeps dropping" --prompt v1
-    python -m promptlab.evaluate
-    python -m unittest discover -s tests -v
+## Why this project
 
-    # real LLM answers
-    set GROQ_API_KEY=your_key        (Windows)
-    python -m promptlab.cli "VPN keeps dropping" --provider groq
+A plain LLM answers confidently even when it is wrong. PromptLab shows how to control that:
+retrieve the right document first, give the model strict instructions through a versioned prompt, and refuse when nothing relevant is found.
 
-## Results on the included eval set (18 in scope, 4 out of scope, synthetic data)
-hit at 1: 94.4 percent, hit at 3: 100 percent, out-of-scope rejected: 100 percent, false reject: 5.6 percent
+## How it works
+
+```
+Question
+   |
+Retriever (text preprocessing + TF-IDF + cosine similarity, top 3)
+   |
+Score below threshold?  -- yes --> "I could not find this in the knowledge base."
+   | no
+Prompt library (qa v1 or qa v2) fills in context and question
+   |
+LLM client (Groq gpt-oss-120b, or offline fallback)
+   |
+Answer with source citations like [vpn-drops]
+```
+
+## Features
+
+- **Prompt library**: named, versioned templates (qa v1, qa v2, summarize v1) with checks for missing variables
+- **NLP retriever**: custom tokenizer with light stemming, TF-IDF with bigrams, cosine similarity
+- **Out-of-scope guard**: refuses when the best retrieval score is too low
+- **Switchable LLM**: Groq when `GROQ_API_KEY` is set, otherwise an offline extractive client that needs no internet
+- **TicketFlow agent**: LangGraph state graph with conditional routing and a retry loop
+- **Evaluation scripts** and **14 unit tests**
+
+## Quick start
+
+```
+pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python -m promptlab.cli "I forgot my password, how do I reset it?"
+```
+
+## Usage and example output
+
+**Ask a question (offline mode, no API key needed)**
+```
+python -m promptlab.cli "VPN keeps dropping" --prompt v1
+```
+```
+[provider: offline | prompt: qa:v1]
+1. Frequent VPN drops are usually caused by weak home internet or a sleeping laptop. [vpn-drops]
+2. Switch to a wired connection or move closer to the router, disable power saving for the network adapter, and reconnect to a different gateway. [vpn-drops]
+Sources: vpn-drops, vpn-setup, recovery
+```
+
+**Unrelated question is refused**
+```
+python -m promptlab.cli "What is the capital of Australia?"
+```
+```
+I could not find this in the knowledge base.
+```
+
+**Real LLM with Groq, comparing prompt versions**
+```
+set GROQ_API_KEY=your_key          (Windows CMD)
+python -m promptlab.cli "VPN keeps dropping" --provider groq --prompt v2
+```
+```
+[provider: groq | prompt: qa:v2]
+1. Verify your home internet strength; a weak connection often causes drops. [vpn-drops]
+2. Switch from Wi-Fi to a wired Ethernet connection or move closer to the router. [vpn-drops]
+3. Disable power-saving options for your network adapter in the device's settings. [vpn-drops]
+4. Reconnect to a different VPN gateway to see if the issue persists. [vpn-drops]
+5. If drops continue, raise a ticket and include the exact times each drop occurs. [vpn-drops]
+```
+
+**Why prompt versions matter:** with the basic prompt (v1) the Groq model added generic steps that are not in the knowledge base, such as Device Manager menu paths and a checklist. The grounded prompt (v2) stayed inside the retrieved source and cited it on every step.
+
+## TicketFlow: LangGraph support agent
+
+```
+classify -> retrieve -> draft -> check -> respond
+                |                   |
+                +----> escalate <---+
+```
+
+- **classify**: sets ticket priority (high, medium, low) with simple rules
+- **retrieve**: finds relevant articles; goes straight to escalate if none are relevant
+- **draft**: writes an answer using qa v1 first, qa v2 on a retry
+- **check**: verifies the answer cites a retrieved source; if not, loops back to draft
+- **escalate**: after two ungrounded attempts, raises an L2 ticket with a summary
+
+```
+python -m promptlab.agent "I lost my work laptop, what should I do?"
+```
+```
+Path: classify:high -> retrieve:found -> draft:qa-v1 -> check:grounded -> respond
+Priority: high | Action: answered
+```
+```
+python -m promptlab.agent "What is the capital of Australia?"
+```
+```
+Path: classify:medium -> retrieve:none -> escalate
+Priority: medium | Action: escalated
+Ticket raised for L2 | priority medium
+```
+
+Print the graph as a Mermaid diagram with `python -m promptlab.agent --graph`.
+
+## Evaluation
+
+Run `python -m promptlab.evaluate` and `python -m promptlab.agent_eval`.
+Test set: 18 help desk questions and 4 unrelated questions (synthetic data, offline mode).
+
+| Metric | Result |
+|---|---|
+| Correct article ranked first | 94.4% |
+| Correct article in top 3 | 100% |
+| Unrelated questions refused | 4 of 4 |
+| TicketFlow answered help desk questions | 17 of 18 |
+| TicketFlow escalated unrelated questions | 4 of 4 |
+
+## Project structure
+
+```
+promptlab/
+  prompts.py      versioned prompt library
+  retriever.py    tokenizer, TF-IDF retriever
+  llm.py          Groq client and offline client
+  assistant.py    retrieval, prompt and LLM pipeline
+  agent.py        TicketFlow LangGraph agent
+  evaluate.py     retrieval evaluation
+  agent_eval.py   agent evaluation
+  cli.py          command line interface
+data/             knowledge base (20 articles) and evaluation questions
+tests/            14 unit tests
+```
+
+## Limitations
+
+- The knowledge base is 20 synthetic help desk articles and the test set is small
+- TF-IDF matches words, not meaning, so heavily reworded questions can miss (one such miss in the test set)
+- Priority rules in TicketFlow are keyword based
+
+## Tech
+
+Python, scikit-learn, LangGraph, Groq API, unittest
