@@ -1,0 +1,26 @@
+{"in_scope":[
+ {"q":"I forgot my login password, how do I get a new one?","doc":"password-reset"},
+ {"q":"My account got blocked after I typed the wrong password too many times","doc":"account-locked"},
+ {"q":"How do I connect to the company network when working from home?","doc":"vpn-setup"},
+ {"q":"The VPN keeps dropping every few minutes","doc":"vpn-drops"},
+ {"q":"My laptop cannot see the office wireless network","doc":"wifi"},
+ {"q":"Printer says offline when I try to print","doc":"printer"},
+ {"q":"Outlook is not showing my new emails","doc":"outlook"},
+ {"q":"I bought a new phone and cannot approve my sign-in requests","doc":"mfa"},
+ {"q":"How can I get a new application installed on my laptop?","doc":"software-request"},
+ {"q":"My computer has become very slow","doc":"laptop-slow"},
+ {"q":"Windows crashed and showed a blue screen","doc":"bsod"},
+ {"q":"I cannot open the team shared folder","doc":"shared-drive"},
+ {"q":"Others cannot hear me in the video meeting","doc":"audio"},
+ {"q":"I deleted a file by mistake, can I get it back?","doc":"recovery"},
+ {"q":"I received a suspicious email asking for my password","doc":"phishing"},
+ {"q":"How fast will a high priority ticket be handled?","doc":"sla"},
+ {"q":"When should an issue be passed to the next support level?","doc":"escalation"},
+ {"q":"I lost my work laptop, what should I do?","doc":"lost-laptop"}
+],
+"out_of_scope":[
+ "What is the capital of Australia?",
+ "Give me a recipe for chicken biryani",
+ "Who won the cricket world cup in 2011?",
+ "Explain quantum entanglement in simple words"
+]}
