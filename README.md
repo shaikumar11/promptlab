@@ -94,28 +94,30 @@ classify -> retrieve -> draft -> check -> respond
 - **check**: verifies the answer cites a retrieved source; if not, loops back to draft
 - **escalate**: after two ungrounded attempts, raises an L2 ticket with a summary
 
+**Self-correcting loop with a real LLM (Groq)**
 ```
 python -m promptlab.agent "I lost my work laptop, what should I do?"
 ```
 ```
-Path: classify:high -> retrieve:found -> draft:qa-v1 -> check:grounded -> respond
+[provider: groq]
+Path: classify:high -> retrieve:found -> draft:qa-v1 -> check:ungrounded -> draft:qa-v2 -> check:grounded -> respond
 Priority: high | Action: answered
+1. Report the lost laptop to the service desk and the security team right away. [lost-laptop]
+2. Have the device locked remotely and request a reset of all your account passwords. [lost-laptop]
+3. If the laptop was stolen, file a police report and include the reference number in your ticket. [lost-laptop]
 ```
+The first draft had no citations, so the check node rejected it. The retry with the stricter prompt was grounded.
+
+**Unrelated question is escalated (offline mode)**
 ```
-python -m promptlab.agent "What is the capital of Australia?"
+python -m promptlab.agent "What is the capital of Australia?" --provider offline
 ```
 ```
 Path: classify:medium -> retrieve:none -> escalate
 Priority: medium | Action: escalated
 Ticket raised for L2 | priority medium
 ```
-
 Print the graph as a Mermaid diagram with `python -m promptlab.agent --graph`.
-
-## Evaluation
-
-Run `python -m promptlab.evaluate` and `python -m promptlab.agent_eval`.
-Test set: 18 help desk questions and 4 unrelated questions (synthetic data, offline mode).
 
 | Metric | Result |
 |---|---|
